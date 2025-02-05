@@ -1,93 +1,96 @@
+import logging
 import asyncio
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.exc import SQLAlchemyError
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, Message, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.fsm.storage.memory import MemoryStorage
 
 
-# Замените на вашу строку подключения к базе данных
-DATABASE_URL = 'sqlite+aiosqlite:///db.sqlite3'
+# Токен вашего бота
+TOKEN = "7541180377:AAHcSumNNnfYmp4FQKRFA8wf3hcRF5UOfhY"
+
+# Варианты ответа
+OPTIONS = {
+    'a': "Покупка жилья",
+    'b': "Получение жилищных субсидий",
+    'c': "Сбережения для детей",
+    'd': "Оптимизация налогов",
+    'e': "Пенсионное обеспечение",
+    'f': "Сохранение накопленного капитала",
+    'g': "Увеличение капитала",
+    'h': "Дополнительный доход",
+}
 
 
-
-class Base(DeclarativeBase):
-    pass
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
+# Состояние
+class UserState(StatesGroup):
+    waiting_for_options = State()
 
 
-class Category(Base):
-    __tablename__ = "categories"
+# Инициализация бота и диспетчера
+bot = Bot(token=TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-
-class Item(Base):
-    __tablename__ = "items"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column()
-    category_id: Mapped[int] = mapped_column()
-
-async_engine = create_async_engine(DATABASE_URL, echo=True)
+logging.basicConfig(level=logging.INFO)
 
 
-async def init_db():
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+# Функция для создания Inline-клавиатуры
+def create_keyboard(selected_options):
+    keyboard = []
+    for key, value in OPTIONS.items():
+        text = f"{'✅ ' if key in selected_options else ''}{value}"
+        keyboard.append([InlineKeyboardButton(text=text, callback_data=f"option_{key}")])
+    keyboard.append([InlineKeyboardButton(text="Готово", callback_data="done")])  # Кнопка "Готово"
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-async def get_async_session() -> AsyncSession:
-    async_session = AsyncSession(async_engine)
-    return async_session
+# Обработчик команды /start
+@dp.message(Command("start"))
+async def start(message: Message, state: FSMContext):
+    await state.set_state(UserState.waiting_for_options)
+    await state.update_data(selected_options=set())  # Инициализация набора выбранных вариантов
+    await message.answer(
+        "1. Ваши цели и планы на ближайшие 5 лет?\n📌 Выберите несколько вариантов ответа.",
+        reply_markup=create_keyboard(set()),
+    )
 
 
-async def set_user(tg_id):
-    async with await get_async_session() as session:
-        try:
-            user = await session.scalar(select(User).where(User.tg_id == tg_id))
+# Обработчик Callback-запросов
+@dp.callback_query(UserState.waiting_for_options)
+async def button(query: CallbackQuery, state: FSMContext):
+    await query.answer()
 
-            if not user:
-                new_user = User(tg_id=tg_id)
-                session.add(new_user)
-                await session.flush()
-                await session.commit()
-                return new_user
-            return user
-        except SQLAlchemyError as e:
-            print(f"Error during set_user: {e}")
-            await session.rollback()
-            return None # Или выбросить исключение, в зависимости от того, как ты хочешь обрабатывать ошибки.
+    data = await state.get_data()
+    selected_options = data.get("selected_options", set())
 
+    if query.data.startswith("option_"):
+        key = query.data.split("_")[1]
+        if key in selected_options:
+            selected_options.remove(key)  # Убрать из выбранных
+        else:
+            selected_options.add(key)  # Добавить в выбранные
+    elif query.data == "done":
+        # Обработка завершения выбора
+        if not selected_options:
+            await query.message.edit_text("Вы не выбрали ни одного варианта. Пожалуйста, выберите хотя бы один.")
+            return
+        selected_options_names = [OPTIONS[key] for key in selected_options]
+        await query.message.edit_text(f"Вы выбрали: \n{',\n '.join(selected_options_names)}")
+        # Здесь можно сделать дополнительные действия, например, сохранить выбор пользователя
+        await state.clear()
+        return
 
-async def get_categories():
-    async with await get_async_session() as session:
-        try:
-            print("Start query categories")
-            all_cat = await session.scalars(select(Category))
-            categories = [category for category in all_cat]
-            for category in categories:
-                print(category.name)
-            print("Finish query categories")
-            return categories
-        except SQLAlchemyError as e:
-             print(f"Error during get_categories: {e}")
-             return [] # Или выбросить исключение, в зависимости от того, как ты хочешь обрабатывать ошибки.
+    await state.update_data(selected_options=selected_options)
+    # Обновление клавиатуры
+    await query.message.edit_reply_markup(reply_markup=create_keyboard(selected_options))
 
 
 async def main():
-     await init_db()
-     # user = await set_user(123)
-     # print(f"set user result: {user}")
-     categories = await get_categories()
-     print(f"get categories result: {categories}")
+    await dp.start_polling(bot)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())

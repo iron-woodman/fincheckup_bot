@@ -8,7 +8,9 @@ from app.config import BOT_TOKEN
 from app.middlewares.db_session import DBSessionMiddleware
 from app.handlers.common import common_router
 from app.handlers.user import user_router
+from app.handlers.admin import admin_router
 from app.database.database import create_tables
+from app.database.requests2 import add_question_data
 
 
 # from app.handlers.admin import admin_router
@@ -21,6 +23,7 @@ async def main():
     # Создание таблиц базы данных (если они не существуют)
     try:
         await create_tables()
+        await add_question_data()
     except Exception as e:
         logging.error(f"Ошибка при создании таблиц БД: {e}")
 
@@ -35,7 +38,7 @@ async def main():
     # Регистрация роутеров
     dp.include_router(common_router)
     dp.include_router(user_router)
-    # dp.include_router(admin_router)
+    dp.include_router(admin_router)
 
     # Запуск поллинга
     try:

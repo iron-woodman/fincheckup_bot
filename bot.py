@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 from app.config import BOT_TOKEN
 from app.handlers.handlers import router
 from app.handlers.reg_user_handlers import register_router
-from app.database.models2 import async_main
+from app.database.models222 import async_main
 from app.middlewares.db_session import DBSessionMiddleware
 
 

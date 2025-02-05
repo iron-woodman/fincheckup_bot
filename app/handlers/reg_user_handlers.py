@@ -5,7 +5,7 @@ from aiogram.fsm.state import State, StatesGroup
 from datetime import date
 
 from app.database.requests2 import add_new_user_profile
-from app.database.models2 import MarriageStatus
+from app.database.models222 import MarriageStatus
 from app.utils.validators import validate_email, validate_age, validate_phone
 
 

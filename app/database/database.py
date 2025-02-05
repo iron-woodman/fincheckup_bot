@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from app.config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_TYPE, SQLITE_FILE
-from app.database.models2 import Base
+from app.database.models import Base
 from typing import AsyncGenerator
 
 

@@ -39,7 +39,7 @@ class Matrix:
                 continue
             if '?' in text:
                 if question != '':
-                    questions.append({'Вопрос': question, 'Тип': question_type, 'Варианты': options})
+                    questions.append({'question': question, 'question_type': question_type, 'options': options})
                 question = text
                 options = []
                 if 'несколько вариантов ответа' in question:
@@ -51,11 +51,11 @@ class Matrix:
                 options.append(text)
 
         if question != '':
-            questions.append({'Вопрос': question, 'Тип': question_type,'Варианты': options})
+            questions.append({'question': question, 'question_type': question_type,'options': options})
 
         self.questions = questions
 
-    def calculate_points(self, selected_answers):
+    async def calculate_points(self, selected_answers):
         """Вычисляет общее количество баллов на основе выбранных ответов."""
         total_points = 0
 

@@ -1,13 +1,15 @@
 import asyncio
+
 from datetime import date
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import selectinload
 import logging
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 
 from app.database.database import get_async_session
-from app.database.models import User, UserProfile, Question, AnswerOption, Answer
+from app.database.models import User, UserProfile, Question, AnswerOption, QuestionType, UserAnswerOptions
 
 logging.basicConfig(level=logging.INFO)
 
@@ -50,7 +52,6 @@ async def add_user(tg_id) -> bool:
             await session.rollback()
             return False
 
-
 async def add_new_user_profile(
     tg_id: int,
     full_name: str = None,
@@ -60,37 +61,56 @@ async def add_new_user_profile(
     status_in_germany: str = None,
 ) -> bool:
     """
-    Добавляем новый профиль пользователя в БД
+    Добавляем или обновляем профиль пользователя в БД. Если профиль существует, он будет обновлен.
     :param tg_id:
     :param full_name:
     :param email:
     :param phone_number:
     :param city:
     :param status_in_germany:
-    :return: True если профиль был добавлен, False если произошла ошибка
+    :return: True, если профиль был добавлен или обновлен, False в случае ошибки.
     """
     async with session_manager() as session:
         try:
             user = await session.scalar(select(User).where(User.telegram_id == tg_id))
+
             if not user:
                 user = User(telegram_id=tg_id)
                 session.add(user)
-                await session.commit()  # commit first to get the id
-                user = await session.scalar(select(User).where(User.telegram_id == tg_id))  # повторный запрос для получения id
+                await session.flush()  # Flush to get the user.id
+                user = await session.scalar(select(User).where(User.telegram_id == tg_id)) #Re-fetch user to ensure it's in the session
+                if not user:
+                    logging.error(f"Failed to retrieve user after creation.")
+                    await session.rollback()
+                    return False
 
-            user_profile = UserProfile(
-                user_id=user.id,
-                full_name=full_name,
-                email=email,
-                phone_number=phone_number,
-                city=city,
-                status_in_germany=status_in_germany,
-            )
-            session.add(user_profile)
+            # Проверяем наличие существующего профиля
+            existing_profile = await session.scalar(select(UserProfile).where(UserProfile.user_id == user.id))
+
+            if existing_profile:
+                # Обновляем существующий профиль
+                existing_profile.full_name = full_name
+                existing_profile.email = email
+                existing_profile.phone_number = phone_number
+                existing_profile.city = city
+                existing_profile.status_in_germany = status_in_germany
+            else:
+                # Создаем новый профиль
+                user_profile = UserProfile(
+                    user_id=user.id,
+                    full_name=full_name,
+                    email=email,
+                    phone_number=phone_number,
+                    city=city,
+                    status_in_germany=status_in_germany,
+                )
+                session.add(user_profile)
+
             await session.commit()
             return True
+
         except SQLAlchemyError as e:
-            logging.error(f"Error adding user profile: {e}")
+            logging.error(f"Error adding/updating user profile: {e}")
             await session.rollback()
             return False
 
@@ -110,6 +130,7 @@ async def load_questions():
                         )
                         options = options_result.scalars().all()
                         all_questions.append({
+                            "id": question.id,  # Добавлено
                             "question": question.question_text,
                             "options": [option.option_text for option in options],
                             "type": question.type,
@@ -121,22 +142,59 @@ async def load_questions():
                 return []
 
 
+
+async def save_answer(user_id: int, question_id: int, selected_options: List[str]):
+    """Сохраняет ответы пользователя в базу данных."""
+    async with session_manager() as session:
+        try:
+            # Get the question
+            question = await session.execute(
+                select(Question).options(selectinload(Question.options)).where(Question.id == question_id)
+            )
+            question = question.scalar()
+
+            if question:
+                for i in selected_options:
+                    try:
+                        option_index = int(i)
+                        option = question.options[option_index]
+
+                        # Create a new UserAnswerOptions record
+                        user_answer_option = UserAnswerOptions(
+                            user_id=user_id,
+                            question_id=question_id,
+                            answer_option_id=option.id
+                        )
+                        session.add(user_answer_option)
+
+                        logging.info(f"Saved UserAnswerOptions for user {user_id}, question {question_id}, option {option.id}")
+                    except (IndexError, ValueError) as e:
+                        logging.error(f"Invalid option index: {i}. Error: {e}")
+                        await session.rollback()
+                        return  # Exit if an invalid option is found
+
+            await session.commit()
+            logging.info(f"Answers saved successfully for user {user_id}, question {question_id}")
+        except Exception as e:
+            logging.error(f"Error saving answers: {e}")
+            await session.rollback()
+
+
+
 async def add_questions_with_options(questions_data: List[Dict[str, Any]]) -> None:
     """Добавляет вопросы и варианты ответов в базу данных."""
     async with session_manager() as session:
         try:
-            for question_data in questions_data:
-                question_text = question_data["question"]
-                question_type = question_data.get("type", "single_choice")  # Default to single_choice if not provided
-
+            for q_data in questions_data:
+                question_text = q_data["question"]
+                question_type = q_data.get("question_type", "single_choice")  # Default to single_choice if not provided. Use "type" instead of "question_type"
+                question_type = QuestionType(question_type)
                 question = Question(question_text=question_text, type=question_type)
                 session.add(question)
                 await session.flush()  # Flush to get id for the question
 
-                for option_data in question_data["options"]:
-                    option_text = option_data["text"]
-                    score = option_data.get("score", 0)  # Default to 0 if not provided
-                    option = AnswerOption(question_id=question.id, option_text=option_text, score=score)
+                for option_data in q_data["options"]:
+                    option = AnswerOption(question_id=question.id, option_text=option_data)
                     session.add(option)
 
                 await session.commit()
@@ -145,6 +203,7 @@ async def add_questions_with_options(questions_data: List[Dict[str, Any]]) -> No
         except SQLAlchemyError as e:
             logging.error(f"Error adding question and options: {e}")
             await session.rollback()
+
 
 
 async def is_tables_empty() -> bool:
@@ -162,112 +221,6 @@ async def is_tables_empty() -> bool:
             logging.error(f"Error checking if tables are empty: {e}")
             return True  # treat as empty to add questions in case of error
 
-
-async def add_question_data():
-    """Добавляет тестовые данные в БД"""
-    if await is_tables_empty():
-        questions_data = [
-            {
-                "question": "Ваши цели и планы на ближайшие 5 лет?\n📌 Выберите несколько вариантов ответа.",
-                "type": "multiple_choice",
-                "options": [
-                    {"text": "Покупка жилья"},
-                    {"text": "Получение жилищных субсидий"},
-                    {"text": "Сбережения для детей"},
-                    {"text": "Оптимизация налогов"},
-                    {"text": "Пенсионное обеспечение"},
-                    {"text": "Сохранение накопленного капитала"},
-                    {"text": "Увеличение капитала"},
-                    {"text": "Дополнительный доход"},
-                ],
-            },
-            {
-                "question": "Ваш возраст?",
-                "options": [
-                    {"text": "От 18 до 35 лет"},
-                    {"text": "От 35 до 45 лет"},
-                    {"text": "Старше 45 лет"},
-                ],
-            },
-            {
-                "question": "Семейное положение?",
-                "options": [
-                    {"text": "Холост / не замужем"},
-                    {"text": "Женат / замужем"},
-                    {"text": "Вдовец / вдова"},
-                ],
-            },
-            {
-                "question": "Количество детей до 18 лет?",
-                "options": [
-                    {"text": "0", "score": 5},
-                    {"text": "1", "score": 4},
-                    {"text": "2", "score": 3},
-                    {"text": "3 и более", "score": 2},
-                ],
-            },
-            {
-                "question": "Текущая занятость?",
-                "options": [
-                    {"text": "Бессрочный договор (unbefristet), госслужащий (Beamter)"},
-                    {"text": "Самозанятый или владелец бизнеса"},
-                    {"text": "Временный трудовой договор (befristet) или MiniJob"},
-                    {"text": "100% поддержка государства (JC - Bürgergeld/Socialamt)"},
-                ],
-            },
-            {
-                "question": "Доход на семью после уплаты налогов (нетто) в месяц?",
-                "options": [
-                    {"text": "Менее 2 500 евро"},
-                    {"text": "От 2 500 до 3 499 евро"},
-                    {"text": "От 3 500 до 4 499 евро"},
-                    {"text": "От 4 500 евро и выше"},
-                ],
-            },
-            {
-                "question": "Хочу получать предложения о подработке в финансовой сфере!",
-                "options": [
-                    {"text": "Да"},
-                    {"text": "Нет"},
-                ],
-            },
-            {
-                "question": "Уровень владения немецким языком?",
-                "options": [
-                    {"text": "A1–A2 (начальный уровень)"},
-                    {"text": "B1 (средний уровень)"},
-                    {"text": "B2 (уверенный уровень)"},
-                    {"text": "C1 и выше (свободное владение)"},
-                ],
-            },
-            {
-                "question": "Обеспеченность жильем? (Выберите один или несколько вариантов ответа)",
-                "type": "multiple_choice",
-                "options": [
-                    {"text": "Аренда жилья (самостоятельная оплата)"},
-                    {"text": "Аренда жилья (поддержка государства)"},
-                    {"text": "Собственное жилье с ипотекой"},
-                    {"text": "Собственное жилье"},
-                    {"text": "Иное (проживание у родственников)"},
-                ],
-            },
-            {
-                "question": "Наличие финансовых продуктов? (Выберите один или несколько вариантов ответа)",
-                "type": "multiple_choice",
-                "options": [
-                    {"text": "Riester Rente / Basis Rente / Rürup-Rente"},
-                    {"text": "Zukunftsplan für Kinder (Накопления на будущее детей)"},
-                    {"text": "Bausparvertrag"},
-                    {"text": "Zusatzversicherung Zahn (Доп. стоматологическая страховка)"},
-                    {"text": "Berufsunfähigkeitsversicherung (Защита от потери трудоспособности)"},
-                    {"text": "Инвестирую в фонды"},
-                    {"text": "Пока не воспользовался"},
-                ],
-            },
-        ]
-        await add_questions_with_options(questions_data)
-    else:
-        logging.info("Questions and options are already in the table. Skipping adding.")
 
 
 async def main():
@@ -303,5 +256,114 @@ async def main():
         logging.error(f"Ошибка добавления профиля пользователя {e}")
 
 
+async def clear_questions_and_options() -> None:
+    """Очищает таблицы questions и answer_options."""
+    async with session_manager() as session:
+        try:
+            # Сначала удаляем все записи из answer_options
+            await session.execute(delete(AnswerOption))
+
+            # Затем удаляем все записи из questions
+            await session.execute(delete(Question))
+
+            # Подтверждаем изменения
+            await session.commit()
+            logging.info("Tables questions and answer_options cleared successfully.")
+        except SQLAlchemyError as e:
+            logging.error(f"Error clearing tables: {e}")
+            await session.rollback()
+
+    # Пример использования:
+    # await clear_questions_and_options()
+
+async def get_user_answers(telegram_id: int) -> List[str]:
+    """
+    Получает все ответы пользователя из базы данных на основе telegram_id.
+
+    Args:
+        telegram_id: Telegram ID пользователя.
+
+    Returns:
+        Список выбранных ответов пользователя.
+        Если ответов нет, возвращает пустой список.
+    """
+    async with session_manager() as session:
+        try:
+            # Находим пользователя по telegram_id
+            user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+
+            if not user:
+                return []  # Пользователь не найден, возвращаем пустой список
+
+            # Получаем все ответы пользователя
+            answers = await session.scalars(select(UserAnswerOptions).where(UserAnswerOptions.user_id == user.id))
+            answers = answers.all()
+
+            # Преобразуем результаты в список словарей для удобства использования
+            result = []
+            for answer in answers:
+                # Получаем текст варианта ответа
+                answer_option = await session.scalar(select(AnswerOption).where(AnswerOption.id == answer.answer_option_id))
+                answer_text = answer_option.option_text if answer_option else None
+                result.append(answer_text)
+
+            return result
+        except SQLAlchemyError as e:
+            logging.error(f"Error getting user answers: {e}")
+            await session.rollback()
+            return []
+
+
+async def get_user_answers_total_info(telegram_id: int) -> List[Dict[str, Any]]:
+    """
+    Получает все ответы пользователя из базы данных на основе telegram_id.
+
+    Args:
+        telegram_id: Telegram ID пользователя.
+
+    Returns:
+        Список словарей, где каждый словарь представляет собой ответ пользователя.
+        Если ответов нет, возвращает пустой список.
+    """
+    async with session_manager() as session:
+        try:
+            # Находим пользователя по telegram_id
+            user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+
+            if not user:
+                return []  # Пользователь не найден, возвращаем пустой список
+
+            # Получаем все ответы пользователя
+            answers = await session.scalars(select(UserAnswerOptions).where(UserAnswerOptions.user_id == user.id))
+            answers = answers.all()
+
+            # Преобразуем результаты в список словарей для удобства использования
+            result = []
+            for answer in answers:
+                # Получаем текст варианта ответа
+                answer_option = await session.scalar(select(AnswerOption).where(AnswerOption.id == answer.answer_option_id))
+                answer_text = answer_option.option_text if answer_option else None
+
+                # Получаем текст вопроса
+                question = await session.scalar(select(Question).where(Question.id == answer.question_id))
+                question_text = question.question_text if question else None
+
+                result.append({
+                    'id': answer.id,
+                    'user_id': answer.user_id,
+                    'question_id': answer.question_id,
+                    'question_text': question_text, # Added question text
+                    'answer_option_id': answer.answer_option_id,
+                    'answer_text': answer_text, # Added answer text
+                    'created_at': answer.created_at
+                })
+
+            return result
+        except SQLAlchemyError as e:
+            logging.error(f"Error getting user answers: {e}")
+            await session.rollback()
+            return []
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    pass

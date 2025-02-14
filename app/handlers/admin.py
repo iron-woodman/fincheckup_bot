@@ -13,6 +13,7 @@ import asyncio
 from app.handlers.common import is_admin
 from app.keyboards import admin_keyboards
 from app.utils.matrix import Matrix
+from app.database.requests2 import clear_questions_and_options, add_questions_with_options
 
 admin_router = Router()
 
@@ -42,21 +43,11 @@ async def save_questions_to_database(df: pd.DataFrame) -> None:
     await matrix.extract_questions()
     print('ВОПРОСЫ:', matrix.questions)
 
-    # session = Session()  # Создаем сессию для работы с базой данных
-    # try:
-    #     for index, row in df.iterrows():  # Проходим по каждой строке DataFrame
-    #         quiz_data = QuizData(
-    #             column_name1=row['Column1'],  # Замените на ваши названия колонок
-    #             column_name2=row['Column2'],  # Замените на ваши названия колонок
-    #             # Добавьте другие колонки по мере необходимости
-    #         )
-    #         session.add(quiz_data)  # Добавляем объект в сессию
-    #     session.commit()  # Сохраняем изменения в базе данных
-    # except Exception as e:
-    #     session.rollback()  # Откат изменений в случае ошибки
-    #     print(f"Ошибка при сохранении данных: {e}")
-    # finally:
-    #     session.close()  # Закрываем сессию
+    await clear_questions_and_options()
+    await add_questions_with_options(matrix.questions)
+
+
+
 
 
 

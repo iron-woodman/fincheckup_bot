@@ -13,3 +13,4 @@ DB_TYPE = os.getenv("DB_TYPE", "sqlite") # Выбор СУБД ('mysql' или '
 SQLITE_FILE = os.getenv("SQLITE_FILE", "fin_test_bot.db")
 # Получение id админов из .env файла, при отсутствии переменной, вернет пустой список
 ADMIN_IDS = [int(admin_id) for admin_id in os.getenv("ADMIN_IDS", "").split(",") if admin_id]
+MANAGER_TELEGRAM_ID = os.getenv("MANAGER_TELEGRAM_ID")

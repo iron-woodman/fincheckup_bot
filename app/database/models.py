@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Float, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
@@ -15,7 +15,7 @@ class User(Base):
     created_at = Column(DateTime, default=func.now())
 
     profile = relationship("UserProfile", back_populates="user", uselist=False)
-    answers = relationship('Answer', back_populates='user')
+    user_answer_options = relationship('UserAnswerOptions', back_populates='user')
 
 
 class UserProfile(Base):
@@ -45,21 +45,22 @@ class Question(Base):
     type = Column(Enum(QuestionType), nullable=False)  # Тип вопроса
     created_at = Column(DateTime, default=func.now())
 
-    answers = relationship('Answer', back_populates='question')
+    user_answer_options = relationship('UserAnswerOptions', back_populates='question')
     options = relationship('AnswerOption', back_populates='question')
 
 
-class Answer(Base):
-    __tablename__ = 'answers'
+class UserAnswerOptions(Base):
+    __tablename__ = 'user_answer_options'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     question_id = Column(Integer, ForeignKey('questions.id'), nullable=False)
+    answer_option_id = Column(Integer, ForeignKey('answer_options.id'), nullable=False)
     created_at = Column(DateTime, default=func.now())
 
-    user = relationship('User', back_populates='answers')
-    question = relationship('Question', back_populates='answers')
-    options = relationship('AnswerOption', back_populates='answer')
+    user = relationship('User', back_populates='user_answer_options')
+    question = relationship('Question', back_populates='user_answer_options')
+    answer_option = relationship('AnswerOption', back_populates='user_answer_options')
 
 
 class AnswerOption(Base):
@@ -67,8 +68,7 @@ class AnswerOption(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     question_id = Column(Integer, ForeignKey('questions.id'), nullable=False)
-    answer_id = Column(Integer, ForeignKey('answers.id'), nullable=False) # Добавлено
     option_text = Column(Text, nullable=False)
 
     question = relationship('Question', back_populates='options')
-    answer = relationship('Answer', back_populates='options')
+    user_answer_options = relationship('UserAnswerOptions', back_populates='answer_option')

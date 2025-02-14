@@ -1,6 +1,8 @@
 from aiogram.types import (ReplyKeyboardMarkup, KeyboardButton,
                            InlineKeyboardMarkup, InlineKeyboardButton)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from typing import List, Dict, Any
+
 # from app.database.requests import get_categories, get_category_item
 
 
@@ -22,6 +24,15 @@ start_test =InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 
+personal_data =InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Подтверждаю', callback_data='user_profile')]
+])
+
+consult_record =InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text='Записаться на встречу', callback_data='consult_record')]
+])
+
+
 catalog =InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text='Кроссовки', callback_data='boots')],
     [InlineKeyboardButton(text='Футболки', callback_data='t-shirt')],
@@ -32,6 +43,24 @@ catalog =InlineKeyboardMarkup(inline_keyboard=[
 get_phone_number = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Отправить номер',
                                                                        request_contact=True)]],
                                        resize_keyboard=True)
+
+
+
+# Функция для создания Inline-клавиатуры
+def create_keyboard(options: List[str], is_multiple_choice: bool = False, selected_options: set = None):
+    keyboard = []
+    if selected_options is None:
+        selected_options = set()
+    for i, option in enumerate(options):
+        key = str(i)  # Using index as key
+        text = f"{'✅ ' if key in selected_options else ''}{option}" if is_multiple_choice else option
+        callback_data = f"option_{key}"
+        keyboard.append([InlineKeyboardButton(text=text, callback_data=callback_data)])
+
+    if is_multiple_choice:
+        keyboard.append([InlineKeyboardButton(text="Готово", callback_data="done")])  # Кнопка "Готово"
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
 
 # async def categories():
 #     all_categories = await get_categories()

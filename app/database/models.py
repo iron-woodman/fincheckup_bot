@@ -72,3 +72,10 @@ class AnswerOption(Base):
 
     question = relationship('Question', back_populates='options')
     user_answer_options = relationship('UserAnswerOptions', back_populates='answer_option')
+
+
+class UserScore(Base):
+    __tablename__ = 'user_score'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    score = Column(Integer, nullable=True)

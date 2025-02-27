@@ -1,8 +1,7 @@
 from aiogram import Router, types
 from aiogram.filters import CommandStart, Command
-from app.database.requests2 import add_user, get_user_by_telegram_id
+from app.database.requests import add_user, get_user_by_telegram_id
 from app.config import ADMIN_IDS
-from sqlalchemy.ext.asyncio import AsyncSession
 import app.keyboards.user_keyboards as user_kb
 import app.keyboards.admin_keyboards as admin_kb
 

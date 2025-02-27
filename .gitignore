@@ -76,3 +76,6 @@ htmlcov/
 
 # excel-files
 *.xlsx
+
+reports/
+arhiv/

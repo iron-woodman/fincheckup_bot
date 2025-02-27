@@ -9,7 +9,9 @@ from app.middlewares.db_session import DBSessionMiddleware
 from app.handlers.common import common_router
 from app.handlers.user import user_router
 from app.handlers.admin import admin_router
+from app.handlers.admin_report import report_router
 from app.handlers.user_test import user_test_router
+from app.handlers.admin_db import db_router
 from app.database.database import create_tables
 
 
@@ -38,9 +40,10 @@ async def main():
     # Регистрация роутеров
     dp.include_router(common_router)
     dp.include_router(user_router)
-    dp.include_router(admin_router)
     dp.include_router(user_test_router)
-
+    dp.include_router(admin_router)
+    dp.include_router(report_router)
+    dp.include_router(db_router)
 
     # Запуск поллинга
     try:

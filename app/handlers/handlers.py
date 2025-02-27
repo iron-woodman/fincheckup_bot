@@ -3,7 +3,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
 
 import app.keyboards.user_keyboards as kb
-import app.database.requests2 as rq
+import app.database.requests as rq
 
 
 router = Router()
@@ -25,19 +25,11 @@ async def cmd_help(message: Message):
     await message.answer('Помощь.')
 
 
-# @router.message(F.text == 'Каталог')
-# async def catalog(message: Message):
-#     await message.answer('Выберите категорию товара', reply_markup=kb.catalog)
 
 @router.message(F.text == 'Каталог')
 async def catalog(message: Message):
     await message.answer('Выберите категорию товара', reply_markup=await kb.categories())
 
-# @router.callback_query(F.data == 't-shirt')
-# async def t_shirt(callback: CallbackQuery):
-#     await callback.answer('Вы выбрали категорию "Футболки"')
-#     # await callback.message.answer('Вы выбрали категорию "Футболки"')
-#     # await callback.answer('Вы выбрали категорию "Футболки"', show_alert=True)
 
 @router.callback_query(F.data.startswith('category_'))
 async def category(callback: CallbackQuery):

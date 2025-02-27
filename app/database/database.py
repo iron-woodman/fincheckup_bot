@@ -1,11 +1,9 @@
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
 from app.config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_TYPE, SQLITE_FILE
 from app.database.models import Base
 from typing import AsyncGenerator
-
 
 # Перенесенное создание движка, чтобы его можно было использовать повторно
 def create_async_engine_from_config():
@@ -41,20 +39,6 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
         finally:
            await session.close()
 
-
-# Синхронная функция для работы с БД
-def get_sync_session():
-    if DB_TYPE == "mysql":
-        sync_engine = create_engine(
-            f'mysql+mysqlconnector://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}'
-        )
-    elif DB_TYPE == "sqlite":
-        sync_engine = create_engine(f"sqlite:///{SQLITE_FILE}")
-    else:
-        raise ValueError("Некорректное значение DB_TYPE. Используйте 'mysql' или 'sqlite'.")
-    Base.metadata.create_all(sync_engine)
-    Session = sessionmaker(bind=sync_engine)
-    return Session()
 
 
 async def create_tables():

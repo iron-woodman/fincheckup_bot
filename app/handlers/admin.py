@@ -13,7 +13,7 @@ import asyncio
 from app.handlers.common import is_admin
 from app.keyboards import admin_keyboards
 from app.utils.matrix import Matrix
-from app.database.requests2 import clear_questions_and_options, add_questions_with_options
+from app.database.requests import clear_questions_and_options, add_questions_with_options
 
 admin_router = Router()
 
@@ -161,23 +161,4 @@ async def handle_answer_templates(message: types.Message, state: FSMContext):
     else:
         await message.reply("У вас нет прав для выполнения этой команды.")
 
-
-@admin_router.message(F.text == "Отчеты")
-async def handle_reports(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    if await is_admin(user_id):
-        await message.answer("Вы выбрали раздел отчетов.\n"
-                             "Функционал находится в разработке.")
-    else:
-        await message.answer("У вас нет прав для выполнения этой команды.")
-
-
-@admin_router.message(F.text == "База данных")
-async def handle_database(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    if await is_admin(user_id):
-        await message.answer("Вы выбрали раздел базы данных.\n"
-                             "Функционал находится в разработке.")
-    else:
-        await message.answer("У вас нет прав для выполнения этой команды.")
 

@@ -1,22 +1,62 @@
-import asyncio
-
-from datetime import date
+import os
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from datetime import datetime, timedelta
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 import logging
 from contextlib import asynccontextmanager
 from typing import List, Dict, Any
 
-from app.database.database import get_async_session
-from app.database.models import User, UserProfile, Question, AnswerOption, QuestionType, UserAnswerOptions
+from app.database.database import get_async_session, async_session_maker
+from app.database.models import User, UserProfile, Question, AnswerOption, QuestionType, UserAnswerOptions, UserScore
 
 logging.basicConfig(level=logging.INFO)
+
+# Список таблиц для очистки (должен совпадать с именами классов моделей)
+TABLES_TO_CLEAN = {
+    "users": User,
+    "user_profiles": UserProfile,
+    "questions": Question,
+    "answer_options": AnswerOption,
+    "user_answer_options": UserAnswerOptions,
+}
+
 
 @asynccontextmanager
 async def session_manager():
     async for session in get_async_session():
         yield session
+
+
+# Асинхронный контекстный менеджер для управления сессией
+@asynccontextmanager
+async def session_scope():
+    """Provide a transactional scope around a series of operations."""
+    session = async_session_maker()
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
+
+# async def session_manager():
+#     """Asynchronous context manager for SQLAlchemy sessions."""
+#     async with get_async_session() as session:  # Используем async with для создания сессии
+#         try:
+#             yield session
+#             await session.commit()
+#         except SQLAlchemyError as e:
+#             logging.error(f"Session error: {e}")
+#             await session.rollback()
+#             raise  # Re-raise the exception
+#         finally:
+#             await session.close()
 
 
 async def get_user_by_telegram_id(tg_id):
@@ -34,6 +74,8 @@ async def get_user_by_telegram_id(tg_id):
             logging.error(f"Error setting user: {e}")
             await session.rollback()
             return None
+
+
 
 
 async def add_user(tg_id) -> bool:
@@ -273,8 +315,29 @@ async def clear_questions_and_options() -> None:
             logging.error(f"Error clearing tables: {e}")
             await session.rollback()
 
-    # Пример использования:
-    # await clear_questions_and_options()
+async def clear_user_answer_options(telegram_id: int) -> None:
+    """Очищает таблицу user_answer_options для указанного telegram_id пользователя."""
+    async with session_manager() as session:
+        try:
+            # Find the user based on telegram_id
+            user = await session.execute(select(User).where(User.telegram_id == telegram_id)) # Fixed: using select
+            user = user.scalar_one_or_none()  # Get the user object or None
+
+            if user:
+                # Delete UserAnswerOptions records associated with the user
+                deleted_count = await session.execute(
+                    delete(UserAnswerOptions).where(UserAnswerOptions.user_id == user.id)  # Use the user's ID
+                )
+                deleted_count = deleted_count.rowcount #Correcting accessing rowcount
+                # Подтверждаем изменения
+                await session.commit()
+                logging.info(f"Удалено {deleted_count} записей UserAnswerOptions с telegram_id = {telegram_id}")
+
+
+        except SQLAlchemyError as e:
+            logging.error(f"Ошибка при очистке таблицы user_answer_options: {e}")
+            await session.rollback()  # Correct the rollback statement
+
 
 async def get_user_answers(telegram_id: int) -> List[str]:
     """
@@ -314,55 +377,189 @@ async def get_user_answers(telegram_id: int) -> List[str]:
             return []
 
 
-async def get_user_answers_total_info(telegram_id: int) -> List[Dict[str, Any]]:
-    """
-    Получает все ответы пользователя из базы данных на основе telegram_id.
+async def generate_user_profile_report(start_date: str, end_date: str) -> str | None:
+    """Генерирует отчет с данными профилей пользователей за указанный период."""
 
-    Args:
-        telegram_id: Telegram ID пользователя.
+    try:
+        reports_dir = "reports"
+        os.makedirs(reports_dir, exist_ok=True)
 
-    Returns:
-        Список словарей, где каждый словарь представляет собой ответ пользователя.
-        Если ответов нет, возвращает пустой список.
-    """
-    async with session_manager() as session:
-        try:
-            # Находим пользователя по telegram_id
-            user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "User Profiles"
 
-            if not user:
-                return []  # Пользователь не найден, возвращаем пустой список
+        # Заголовки столбцов
+        headers = ["User ID", "Telegram ID", "Full Name", "Email", "Phone Number", "City", "Status in Germany",
+                   "Registration Date"]
+        ws.append(headers)
+        # Преобразуем строки в объекты datetime
+        start_date = datetime.strptime(start_date, '%d.%m.%Y')
+        end_date = datetime.strptime(end_date, '%d.%m.%Y') + timedelta(days=1)  # Включаем последний день
 
-            # Получаем все ответы пользователя
-            answers = await session.scalars(select(UserAnswerOptions).where(UserAnswerOptions.user_id == user.id))
-            answers = answers.all()
+        async with session_manager() as session:
+            # Запрос данных из базы данных, явно загружаем профили пользователей
+            result = await session.execute(
+                select(User)
+                .filter(User.created_at >= start_date, User.created_at <= end_date)
+                .options(selectinload(User.profile))  # Явно загружаем профиль пользователя
+            )
+            users = result.scalars().all()
 
-            # Преобразуем результаты в список словарей для удобства использования
-            result = []
-            for answer in answers:
-                # Получаем текст варианта ответа
-                answer_option = await session.scalar(select(AnswerOption).where(AnswerOption.id == answer.answer_option_id))
-                answer_text = answer_option.option_text if answer_option else None
+            for user in users:
+                # Получаем данные профиля для каждого пользователя
+                profile_data = {
+                    "User ID": user.id,
+                    "Telegram ID": user.telegram_id,
+                    "Full Name": user.profile.full_name if user.profile else "",
+                    "Email": user.profile.email if user.profile else "",
+                    "Phone Number": user.profile.phone_number if user.profile else "",
+                    "City": user.profile.city if user.profile else "",
+                    "Status in Germany": user.profile.status_in_germany if user.profile else "",
+                    "Registration Date": user.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                }
 
-                # Получаем текст вопроса
-                question = await session.scalar(select(Question).where(Question.id == answer.question_id))
-                question_text = question.question_text if question else None
+                row = [profile_data[header] for header in headers]
+                ws.append(row)
 
-                result.append({
-                    'id': answer.id,
-                    'user_id': answer.user_id,
-                    'question_id': answer.question_id,
-                    'question_text': question_text, # Added question text
-                    'answer_option_id': answer.answer_option_id,
-                    'answer_text': answer_text, # Added answer text
-                    'created_at': answer.created_at
+    except SQLAlchemyError as e:
+        logging.error(f"Error generating user profile report: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error generating user profile report: {e}")
+        return None
+    finally:
+        filename = f"user_profiles_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.xlsx"
+        filepath = os.path.join(reports_dir, filename)  # Сохраняем в каталоге reports
+        # Сохраняем файл
+        wb.save(filepath)
+        return filepath
+
+
+async def get_user_answers_data_length(start_date: str, end_date: str) -> str:
+    try:
+        start_date_dt = datetime.strptime(start_date, '%d.%m.%Y')
+        end_date_dt = datetime.strptime(end_date, '%d.%m.%Y') + timedelta(days=1)
+
+        async with session_scope() as session:
+            # Проверяем наличие данных в таблице UserAnswerOptions
+            count_result = await session.execute(
+                select(UserAnswerOptions).filter(
+                    UserAnswerOptions.created_at >= start_date_dt,
+                    UserAnswerOptions.created_at <= end_date_dt
+                )
+            )
+
+            # Получаем количество записей
+            count = len(count_result.scalars().all())
+            return count
+
+    except SQLAlchemyError as e:
+        logging.error(f"Error getting user answers data: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        return None
+
+
+async def get_user_answers_data(start_date: str, end_date: str) -> str:
+    """Получает данные об ответах пользователей и генерирует XLSX-файл."""
+    try:
+        start_date_dt = datetime.strptime(start_date, '%d.%m.%Y')
+        end_date_dt = datetime.strptime(end_date, '%d.%m.%Y') + timedelta(days=1)
+
+        async with session_scope() as session:
+            stmt = select(
+                    User.telegram_id,
+                    Question.question_text,
+                    AnswerOption.option_text,
+                    UserAnswerOptions.created_at,
+                    UserScore.score.label("user_score")
+                ).select_from(UserAnswerOptions)  # Указываем начальную таблицу
+
+            stmt = stmt.join(User, UserAnswerOptions.user_id == User.id) # Explicit joins
+            stmt = stmt.join(Question, UserAnswerOptions.question_id == Question.id)
+            stmt = stmt.join(AnswerOption, UserAnswerOptions.answer_option_id == AnswerOption.id)
+            stmt = stmt.outerjoin(UserScore, UserAnswerOptions.user_id == UserScore.user_id)
+
+            stmt = stmt.filter(UserAnswerOptions.created_at >= start_date_dt, UserAnswerOptions.created_at <= end_date_dt)
+
+            result = await session.execute(stmt)
+
+            data = []
+            for telegram_id, question_text, option_text, created_at, score in result:
+                data.append({
+                    "Telegram ID": telegram_id,
+                    "Question Text": question_text,
+                    "Answer Option Text": option_text,
+                    "Answered At": created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    "Score": score if score is not None else 0
                 })
 
-            return result
+            df = pd.DataFrame(data)
+
+            wb = Workbook()
+            ws = wb.active
+            for r in dataframe_to_rows(df, index=False, header=True):
+                ws.append(r)
+
+            filename = f"user_answers_{start_date_dt.strftime('%Y%m%d')}_{end_date_dt.strftime('%Y%m%d')}.xlsx"
+            filepath = f"./reports/{filename}"
+            wb.save(filepath)
+
+            return filepath
+
+    except SQLAlchemyError as e:
+        logging.error(f"Error getting user answers data: {e}")
+        return None
+    except Exception as e:
+        logging.exception(f"Unexpected error: {e}") # Log the full traceback
+        return None
+
+
+
+async def clean_tables(selected_tables):
+    async for session in get_async_session():
+        for table_name in selected_tables:
+            table_model = TABLES_TO_CLEAN[table_name]
+            # Используем SQLAlchemy для удаления всех записей из таблицы
+            await session.execute(delete(table_model))
+        await session.commit()
+
+
+async def upsert_user_score_by_telegram_id(telegram_id: int, score: int) -> bool:
+    """Adds or updates a UserScore record based on the user's Telegram ID."""
+    async with session_scope() as session:
+        try:
+            # 1. Get the User object using the Telegram ID
+            user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+            if not user:
+                logging.warning(f"User with Telegram ID {telegram_id} not found.")
+                return False  # User not found
+
+            # 2. Check for existing UserScore record for this user
+            existing_score = await session.scalar(select(UserScore).where(UserScore.user_id == user.id))
+
+            if existing_score:
+                # Update existing score
+                existing_score.score = score
+                logging.info(f"Updated score for user (Telegram ID: {telegram_id}), new score: {score}")
+            else:
+                # Create and add a new score record
+                new_score = UserScore(user_id=user.id, score=score)
+                session.add(new_score)
+                logging.info(f"Added new score for user (Telegram ID: {telegram_id}), score: {score}")
+
+            await session.commit()
+            return True
+
         except SQLAlchemyError as e:
-            logging.error(f"Error getting user answers: {e}")
+            logging.error(f"SQLAlchemy error upserting user score: {e}", exc_info=True)
             await session.rollback()
-            return []
+            return False
+        except Exception as e:
+            logging.error(f"Unexpected error upserting user score: {e}", exc_info=True)
+            await session.rollback()
+            return False
 
 
 if __name__ == "__main__":

@@ -7,12 +7,12 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-from app.database.requests2 import load_questions, get_user_by_telegram_id, save_answer
+from app.database.requests import (load_questions, get_user_by_telegram_id, save_answer, clear_user_answer_options)
 from app.database.models import QuestionType
 from app.keyboards.user_keyboards import create_keyboard, personal_data
 
 # Импортируем session_manager
-from app.database.requests2 import session_manager
+from app.database.requests import session_manager
 
 # Состояние
 class UserState(StatesGroup):
@@ -43,8 +43,14 @@ async def start_test(callback: CallbackQuery, state: FSMContext):
             return
 
         question = all_questions[current_question_index]
+        try:
+            await clear_user_answer_options(callback.from_user.id)
+        except Exception as e:
+            logging.exception(f"Error in clear_user_answer_options({callback.from_user.id}) function: {e}")
+            await callback.message.answer(f"Произошла ошибка: {e}")
 
         try:
+
             is_multiple_choice = QuestionType(question["type"]) == QuestionType.MULTIPLE_CHOICE
         except ValueError as e:
             logging.error(f"Invalid QuestionType in database: {question['type']}. Error: {e}")

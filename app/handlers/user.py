@@ -3,14 +3,12 @@ from aiogram import F, Router, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from datetime import date
 from app.config import MANAGER_TELEGRAM_ID
-from app.database.requests2 import add_new_user_profile, get_user_answers
+from app.database.requests import add_new_user_profile, get_user_answers, upsert_user_score_by_telegram_id
 from app.utils.matrix import Matrix
 from app.utils.shablon import Shablon
 from app.keyboards.user_keyboards import consult_record
-from app.utils.validators import (validate_email, validate_age, validate_phone, validate_full_name, validate_city_name,
-                                  validate_user_status)
+from app.utils.validators import (validate_email, validate_phone, validate_full_name, validate_city_name)
 
 
 class UserProfileData(StatesGroup):
@@ -28,9 +26,6 @@ user_router = Router()
 # Словарь для хранения данных
 user_data = {}
 
-# @user_router.callback_query(F.data == 'start_test')
-# @user_router.callback_query(F.data == 'start_user_profile')
-# @user_router.message(F.data == 'Тест завершен!')
 @user_router.callback_query(F.data == 'user_profile')
 async def register(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserProfileData.waiting_for_full_name)
@@ -88,6 +83,7 @@ async def register_phone_number(message: Message, state: FSMContext):
         await state.update_data(status_in_germany=status_in_germany)
         await state.set_state(UserProfileData.waiting_for_status_in_germany)
         # await message.answer('Сбор анктных данных завершен')
+
         data = await state.get_data()
         print(data)
 
@@ -101,6 +97,8 @@ async def register_phone_number(message: Message, state: FSMContext):
                 matrix = Matrix(r'quiz_data\quiz_matrix.xlsx')
                 await matrix.process_matrix_file(matrix.excel_file)  # Загрузка файла
                 user_points = await matrix.calculate_points(user_answers)
+
+                await upsert_user_score_by_telegram_id(message.from_user.id, user_points)
                 print('user_points:', user_points)
                 shablon = Shablon(r'quiz_data\quiz_shablon.xlsx')
                 await shablon.process_shablon_file()

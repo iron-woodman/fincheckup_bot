@@ -1,5 +1,5 @@
      # Используем официальный образ Python
-     FROM python:3.12-slim-bullseye
+     FROM python:3.13-slim-bullseye
 
      # Устанавливаем рабочую директорию
      WORKDIR /app

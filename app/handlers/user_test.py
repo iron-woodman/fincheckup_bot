@@ -122,7 +122,7 @@ async def button(query: CallbackQuery, state: FSMContext):
             await save_answer(user.id, question["id"], list(selected_options))  # save the answer
         else:
             logging.error(f"User not found for telegram_id: {query.from_user.id}")
-
+        print(selected_option_names)
         await query.message.edit_text(f"Вы выбрали: \n{',\n '.join(selected_option_names)}")
         await next_question(query.message, state)  # Go to the next question
 

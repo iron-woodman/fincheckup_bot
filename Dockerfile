@@ -1,5 +1,5 @@
      # Используем официальный образ Python
-     FROM python:3.9-slim
+     FROM python
 
      # Устанавливаем рабочую директорию
      WORKDIR /app
@@ -11,5 +11,5 @@
      RUN pip install --no-cache-dir -r requirements.txt
 
      # Команда для запуска бота
-     CMD ["python", "bot.py"]
+     CMD ["python3", "bot.py"]
 

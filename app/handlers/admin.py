@@ -39,7 +39,7 @@ async def save_questions_to_database(df: pd.DataFrame) -> None:
     Сохраняет вопросы из DataFrame в базу данных.
     """
 
-    matrix = Matrix(r'quiz_data\quiz_matrix.xlsx')
+    matrix = Matrix(os.path.join('quiz_data', 'quiz_matrix.xlsx'))
 
     await matrix.process_matrix_file(matrix.excel_file)  # Загрузка файла
     await matrix.extract_questions()

@@ -1,5 +1,5 @@
 ## -*- coding: utf-8 -*-
-
+import os
 import logging
 from aiogram import F, Router, Bot
 from aiogram.types import Message, CallbackQuery
@@ -102,7 +102,7 @@ async def register_phone_number(message: Message, state: FSMContext):
 
                 await upsert_user_score_by_telegram_id(message.from_user.id, user_points)
                 print('user_points:', user_points)
-                shablon = Shablon(r'quiz_data\quiz_shablon.xlsx')
+                shablon = Shablon(os.path.join('quiz_data', 'quiz_shablon.xlsx'))
                 await shablon.process_shablon_file()
                 await shablon.extract_shablon_data()
                 user_results = await shablon.get_shablon(user_points)

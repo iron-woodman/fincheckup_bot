@@ -1,3 +1,5 @@
+## -*- coding: utf-8 -*-
+
 import aiohttp
 from aiogram import F, Router, types
 from aiogram.types import Message, CallbackQuery

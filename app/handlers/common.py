@@ -1,3 +1,5 @@
+## -*- coding: utf-8 -*-
+
 from aiogram import Router, types
 from aiogram.filters import CommandStart, Command
 from app.database.requests import add_user, get_user_by_telegram_id

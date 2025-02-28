@@ -1,3 +1,5 @@
+## -*- coding: utf-8 -*-
+
 import logging
 from aiogram import F, Router, types, Bot
 from aiogram.fsm.state import State, StatesGroup

@@ -1,3 +1,5 @@
+## -*- coding: utf-8 -*-
+
 import logging
 from aiogram import F, Router, Bot
 from aiogram.types import Message, CallbackQuery

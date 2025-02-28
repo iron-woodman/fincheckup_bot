@@ -1,3 +1,5 @@
+## -*- coding: utf-8 -*-
+
 from aiogram import  F, Router
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command

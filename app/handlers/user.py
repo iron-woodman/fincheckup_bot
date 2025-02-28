@@ -96,7 +96,7 @@ async def register_phone_number(message: Message, state: FSMContext):
                 print("User profile added successfully.")
                 # подсчитываем количество набранных баллов пользователем и выводим ему соответсующее сообщение
                 user_answers = await get_user_answers(message.from_user.id)
-                matrix = Matrix(r'quiz_data\quiz_matrix.xlsx')
+                matrix = Matrix(os.path.join('quiz_data','quiz_matrix.xlsx'))
                 await matrix.process_matrix_file(matrix.excel_file)  # Загрузка файла
                 user_points = await matrix.calculate_points(user_answers)
 

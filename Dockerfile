@@ -1,15 +1,18 @@
-     # Используем официальный образ Python
-     FROM python:3.13-slim-bullseye
+# Используем официальный образ Python
+FROM python:3.13-slim-bullseye
 
-     # Устанавливаем рабочую директорию
-     WORKDIR /app
+# Устанавливаем рабочую директорию
+WORKDIR /app
 
-     # Копируем файлы проекта в контейнер
-     COPY . .
+# Объявляем том для корневого каталога проекта
+VOLUME /app
 
-     # Устанавливаем зависимости
-     RUN pip install --no-cache-dir -r requirements.txt
+# Копируем все файлы проекта, включая .env
+COPY . .
 
-     # Команда для запуска бота
-     CMD ["python3", "bot.py"]
+# Устанавливаем зависимости
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Команда для запуска бота
+CMD ["python3", "bot.py"]
 

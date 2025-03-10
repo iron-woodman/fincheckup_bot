@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 from app.database.requests import (load_questions, get_user_by_telegram_id, save_answer, clear_user_answer_options)
 from app.database.models import QuestionType
-from app.keyboards.user_keyboards import create_keyboard, personal_data
+from app.keyboards.user_keyboards import create_keyboard, personal_data, allow_personal_data_keyboard
 
 # Импортируем session_manager
 from app.database.requests import session_manager
@@ -149,4 +149,15 @@ async def next_question(message: types.Message, state: FSMContext):
     else:
         await message.answer("Поздравляю, ваши первые результаты готовы!")
         await state.clear()
-        await message.answer("Подтвердите согласие на обработку персональных данных.", reply_markup=personal_data)
+        await message.answer("""Мы заботимся о ваших персональных данных и соблюдаем законодательство ЕС, поэтому просим вас подтвердить свое согласие на обработку персональных данных в Deutsche Vermögensberatung AG (DVAG) в рамках финансового консультирования в соответствии с GDPR / DSGVO.
+
+ 📌 Кто обрабатывает данные?
+Ваши данные доступны только вашему консультанту DVAG.
+
+ 📌 Как отозвать согласие?
+Вы можете сделать это в любое время по e-mail: datenschutz@dvag.com.
+
+ 📌 Полная информация:
+📄 Политика конфиденциальности (http://www.datenschutz.dvag/)
+
+ 👉 Вы согласны?""", reply_markup=allow_personal_data_keyboard)

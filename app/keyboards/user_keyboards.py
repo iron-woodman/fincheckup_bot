@@ -47,6 +47,23 @@ get_phone_number = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Отпр�
                                        resize_keyboard=True)
 
 
+# опции обработки персональных данных
+allow_personal_data_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="✅ Да, соглашаюсь", callback_data="allow_personal_data:yes")],
+    [InlineKeyboardButton(text="❌ Нет, напомнить позже", callback_data="allow_personal_data:no")],
+])
+
+# ---------------------- статус в германии ---------------------------------------------
+
+user_status_in_germany_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Гражданство Германии", callback_data="Гражданство Германии")],
+    [InlineKeyboardButton(text="ПМЖ", callback_data="ПМЖ")],
+    [InlineKeyboardButton(text="ВНЖ", callback_data="ВНЖ")],
+    [InlineKeyboardButton(text="Голубая карта ЕС", callback_data="Голубая карта ЕС")],
+    [InlineKeyboardButton(text="Другое", callback_data="Другое")],
+])
+
+# --------------------------------------------------------------------------------------
 
 # Функция для создания Inline-клавиатуры
 def create_keyboard(options: List[str], is_multiple_choice: bool = False, selected_options: set = None):

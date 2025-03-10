@@ -1,2 +1,25 @@
+# Обновить локальный репозиторий, загрузив изменения с удаленного репозитория origin ветки main
+git pull origin main
+
+# Собрать образ Docker с именем fin_bot из текущего каталога
+docker build -t fin_bot .
+
+# Запустить образ Docker fin_bot в фоновом режиме, создав контейнер с именем fin_bot_conteiner и смонтировав текущий каталог в /app
 docker run -d --name fin_bot_conteiner -v $(pwd):/app fin_bot
+
+# Остановить контейнер с именем fin_bot_conteiner
+docker stop fin_bot_conteiner
+
+# Удалить контейнер с именем fin_bot_conteiner
+docker rm fin_bot_conteiner
+
+
+# Получить список всех контейнеров (запущенных и остановленных) с их ID и другими данными
+docker ps -a
+
+# Показать логи контейнера с ID f7480043885f
+docker logs f7480043885f
+
+# Редактировать файл .env с помощью текстового редактора nano
+nano .env
 

@@ -84,9 +84,6 @@ def validate_international_phone_number_basic(phone_number: str) -> bool:
 
 
 
-
-
-
 def validate_phone(phone: str) -> bool:
     """
     Проверяет, является ли строка корректным номером телефона.
@@ -100,6 +97,7 @@ def validate_phone(phone: str) -> bool:
     if not isinstance(phone, str):
         return False
     return bool(re.match(PHONE_REGEX, phone))
+
 
 def validate_age(age: str) -> bool:
     """
@@ -117,6 +115,7 @@ def validate_age(age: str) -> bool:
         return 100 > age > 10
     except ValueError:
         return False
+
 
 def validate_children_count(count: str) -> bool:
     """
@@ -212,9 +211,6 @@ def validate_user_status(user_status: str) -> bool:
     # или проверять наличие определенных слов в строке, если необходимо
 
     return True # если все проверки пройдены, статус корректен
-
-
-
 
 
 if __name__ == '__main__':

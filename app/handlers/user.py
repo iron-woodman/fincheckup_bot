@@ -89,25 +89,28 @@ async def add_user_profile(callback: CallbackQuery, state: FSMContext):
 
         data = await state.get_data()
         try:
-            data['tg_id'] = callback.from_user.id  # ИСПРАВЛЕНО: используем callback.from_user.id
+            data['tg_id'] = callback.message.from_user.id  # ИСПРАВЛЕНО: используем callback.from_user.id
             success = await add_new_user_profile(**data)
             if success:
                 print("User profile added successfully.")
                 user_answers = await get_user_answers(callback.from_user.id) # ИСПРАВЛЕНО
-                matrix = Matrix(os.path.join('quiz_data','quiz_matrix.xlsx'))
-                await matrix.process_matrix_file(matrix.excel_file)
-                user_points = await matrix.calculate_points(user_answers)
-                await upsert_user_score_by_telegram_id(callback.from_user.id, user_points) # ИСПРАВЛЕНО
-                print('user_points:', user_points)
-                shablon = Shablon(os.path.join('quiz_data', 'quiz_shablon.xlsx'))
-                await shablon.process_shablon_file()
-                await shablon.extract_shablon_data()
-                user_results = await shablon.get_shablon(user_points)
-                print(user_results)
-                await state.clear()
-                if user_results is None:
-                    user_results = "---"
-                await callback.message.answer(user_results, reply_markup=consult_record)
+                if len(user_answers) == 0:
+                    await callback.message.answer("Отлично! Вы прошли наш небольшой опрос.", reply_markup=consult_record)
+                else:
+                    matrix = Matrix(os.path.join('quiz_data','quiz_matrix.xlsx'))
+                    await matrix.process_matrix_file(matrix.excel_file)
+                    user_points = await matrix.calculate_points(user_answers)
+                    await upsert_user_score_by_telegram_id(callback.from_user.id, user_points) # ИСПРАВЛЕНО
+                    print('user_points:', user_points)
+                    shablon = Shablon(os.path.join('quiz_data', 'quiz_shablon.xlsx'))
+                    await shablon.process_shablon_file()
+                    await shablon.extract_shablon_data()
+                    user_results = await shablon.get_shablon(user_points)
+                    print(user_results)
+                    await state.clear()
+                    if user_results is None:
+                        user_results = "---"
+                    await callback.message.answer(user_results, reply_markup=consult_record)
             else:
                 print("Failed to add user profile.")
         except Exception as e:

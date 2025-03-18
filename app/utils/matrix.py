@@ -79,19 +79,23 @@ class Matrix:
                 if col not in selected_answers or col == answer:
                     continue
                 correction = matching_rows[col].values
-                if pd.notna(correction[0]):
-                    correction_sum += correction[0]
+                if len(correction) > 0:  # Add length check to prevent IndexError
+                    if pd.notna(correction[0].item()):
+                        correction_sum += correction[0].item()
+                else:
+                    print(f"WARNING: No value found for column {col} and answer {answer}")
 
             total_points += correction_sum
 
         return total_points
 
+
 async def main():
     matrix = Matrix(r'..\..\quiz_data\quiz_matrix.xlsx')
     await matrix.process_matrix_file(matrix.excel_file)  # Загрузка файла
     await matrix.extract_questions()  # Извлечение вопросов
-    selected_answers = ["Покупка жилья", "От 35 до 45 лет", "2 ребенка"]
-    total_score = matrix.calculate_points(selected_answers)
+    selected_answers = ["Покупка жилья", "От 35 до 45 лет", "2 ребенка", "Рост капитала"]
+    total_score = await matrix.calculate_points(selected_answers)
     print("Общее количество баллов:", total_score)
 
     for q in matrix.questions:

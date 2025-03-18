@@ -35,6 +35,7 @@ async def start_test(callback: CallbackQuery, state: FSMContext):
     global current_question_index
     current_question_index = 0
     try:
+        await state.clear()
         await load_data()
         print(f"All questions: {all_questions}") # Debug print
         await state.set_state(UserState.waiting_for_answer)

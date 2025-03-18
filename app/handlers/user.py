@@ -89,7 +89,7 @@ async def add_user_profile(callback: CallbackQuery, state: FSMContext):
 
         data = await state.get_data()
         try:
-            data['tg_id'] = callback.message.from_user.id  # ИСПРАВЛЕНО: используем callback.from_user.id
+            data['tg_id'] = callback.from_user.id  # ИСПРАВЛЕНО: используем callback.from_user.id
             success = await add_new_user_profile(**data)
             if success:
                 print("User profile added successfully.")
@@ -115,6 +115,7 @@ async def add_user_profile(callback: CallbackQuery, state: FSMContext):
                 print("Failed to add user profile.")
         except Exception as e:
             logging.error(f"Ошибка добавления профиля пользователя {e}")
+            await state.clear()
 
     else:
         await callback.message.answer("Пожалуйста, укажите корректный статус в Германии.",

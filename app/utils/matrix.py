@@ -57,6 +57,38 @@ class Matrix:
 
         self.questions = questions
 
+    # async def calculate_points(self, selected_answers):
+    #     """Вычисляет общее количество баллов на основе выбранных ответов."""
+    #     total_points = 0
+    #
+    #     for answer in selected_answers:
+    #         print(f"Обрабатываем ответ: {answer}")
+    #         answer = answer.strip()
+    #         matching_rows = self.df[self.df['Ответы / критерии (вес) / баллы'] == answer]
+    #
+    #         base_score = matching_rows['Базовые баллы'].values
+    #         if len(base_score) > 0:
+    #             total_points += base_score[0]
+    #             print(f"{answer}: Базовый балл = {base_score[0]}")
+    #         else:
+    #             print(f"{answer}: Базовый балл не найден")
+    #             continue
+    #
+    #         correction_sum = 0
+    #         for col in self.df.columns[3:]:
+    #             if col not in selected_answers or col == answer:
+    #                 continue
+    #             correction = matching_rows[col].values
+    #             if len(correction) > 0:  # Add length check to prevent IndexError
+    #                 if pd.notna(correction[0].item()):
+    #                     correction_sum += correction[0].item()
+    #             else:
+    #                 print(f"WARNING: No value found for column {col} and answer {answer}")
+    #
+    #         total_points += correction_sum
+    #
+    #     return total_points
+
     async def calculate_points(self, selected_answers):
         """Вычисляет общее количество баллов на основе выбранных ответов."""
         total_points = 0
@@ -68,8 +100,14 @@ class Matrix:
 
             base_score = matching_rows['Базовые баллы'].values
             if len(base_score) > 0:
-                total_points += base_score[0]
-                print(f"{answer}: Базовый балл = {base_score[0]}")
+                # Преобразуем к числовому типу и берем первый элемент
+                try:
+                    base_score_value = pd.to_numeric(base_score[0])
+                    total_points += base_score_value
+                    print(f"{answer}: Базовый балл = {base_score_value}")
+                except ValueError:
+                    print(f"WARNING: Не удалось преобразовать базовый балл '{base_score[0]}' в число для ответа {answer}")
+                    continue  # Пропускаем этот ответ, если преобразование не удалось
             else:
                 print(f"{answer}: Базовый балл не найден")
                 continue
@@ -78,10 +116,18 @@ class Matrix:
             for col in self.df.columns[3:]:
                 if col not in selected_answers or col == answer:
                     continue
+
                 correction = matching_rows[col].values
-                if len(correction) > 0:  # Add length check to prevent IndexError
-                    if pd.notna(correction[0].item()):
-                        correction_sum += correction[0].item()
+
+                if len(correction) > 0:
+                    # Преобразуем к числовому типу и проверяем на NaN
+                    try:
+                        correction_value = pd.to_numeric(correction[0])
+                        if pd.notna(correction_value):
+                            correction_sum += correction_value
+                    except ValueError:
+                        print(f"WARNING: Не удалось преобразовать значение '{correction[0]}' из столбца {col} в число для ответа {answer}")
+
                 else:
                     print(f"WARNING: No value found for column {col} and answer {answer}")
 

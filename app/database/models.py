@@ -30,7 +30,6 @@ class UserProfile(Base):
     phone_number = Column(String, nullable=True)
     city = Column(String, nullable=True)
     status_in_germany = Column(String, nullable=True)
-
     user = relationship("User", back_populates="profile")
 
 

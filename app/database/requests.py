@@ -14,6 +14,8 @@ from typing import List, Dict, Any
 
 from app.database.database import get_async_session, async_session_maker
 from app.database.models import User, UserProfile, Question, AnswerOption, QuestionType, UserAnswerOptions, UserScore
+from app.utils.encripter import encrypt_message, decrypt_message
+from app.config import ENCRIPTION_KEY
 
 logging.basicConfig(level=logging.INFO)
 
@@ -131,20 +133,26 @@ async def add_new_user_profile(
             # Проверяем наличие существующего профиля
             existing_profile = await session.scalar(select(UserProfile).where(UserProfile.user_id == user.id))
 
+
+            # шифруем данные пользователя перед занесением в БД
+            encrypted_email = await encrypt_message(email, ENCRIPTION_KEY)
+            encrypted_phone_number = await encrypt_message(phone_number, ENCRIPTION_KEY)
+            encrypted_full_name = await encrypt_message(full_name, ENCRIPTION_KEY)
+
             if existing_profile:
                 # Обновляем существующий профиль
-                existing_profile.full_name = full_name
-                existing_profile.email = email
-                existing_profile.phone_number = phone_number
+                existing_profile.full_name = encrypted_full_name
+                existing_profile.email = encrypted_email
+                existing_profile.phone_number = encrypted_phone_number
                 existing_profile.city = city
                 existing_profile.status_in_germany = status_in_germany
             else:
                 # Создаем новый профиль
                 user_profile = UserProfile(
                     user_id=user.id,
-                    full_name=full_name,
-                    email=email,
-                    phone_number=phone_number,
+                    full_name=encrypted_full_name,
+                    email=encrypted_email,
+                    phone_number=encrypted_phone_number,
                     city=city,
                     status_in_germany=status_in_germany,
                 )
@@ -412,9 +420,9 @@ async def generate_user_profile_report(start_date: str, end_date: str) -> str | 
                 profile_data = {
                     "User ID": user.id,
                     "Telegram ID": user.telegram_id,
-                    "Full Name": user.profile.full_name if user.profile else "",
-                    "Email": user.profile.email if user.profile else "",
-                    "Phone Number": user.profile.phone_number if user.profile else "",
+                    "Full Name": await decrypt_message(user.profile.full_name, ENCRIPTION_KEY) if user.profile else "",
+                    "Email": await decrypt_message(user.profile.email, ENCRIPTION_KEY) if user.profile else "",
+                    "Phone Number": await decrypt_message(user.profile.phone_number, ENCRIPTION_KEY) if user.profile else "",
                     "City": user.profile.city if user.profile else "",
                     "Status in Germany": user.profile.status_in_germany if user.profile else "",
                     "Registration Date": user.created_at.strftime("%Y-%m-%d %H:%M:%S")

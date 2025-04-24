@@ -71,6 +71,9 @@ htmlcov/
 # db files
 *.db
 
+# encription file
+.key
+
 # docx files
 *.docx
 

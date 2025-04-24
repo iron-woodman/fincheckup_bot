@@ -3,7 +3,7 @@
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from app.config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_TYPE, SQLITE_FILE
+from app.config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, DB_TYPE, DB_PORT, SQLITE_FILE
 from app.database.models import Base
 from typing import AsyncGenerator
 
@@ -18,6 +18,11 @@ def create_async_engine_from_config():
         engine = create_async_engine(
             f'sqlite+aiosqlite:///{SQLITE_FILE}',
             echo=True, # Включим логирование запросов для дебага
+        )
+    elif DB_TYPE == "postgresql":
+        engine = create_async_engine(
+            f'postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}',
+            echo=True,  # Включим логирование запросов для дебага
         )
     else:
         raise ValueError("Некорректное значение DB_TYPE. Используйте 'mysql' или 'sqlite'.")

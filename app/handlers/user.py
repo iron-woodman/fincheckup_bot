@@ -145,7 +145,10 @@ async def record_for_consult(callback: CallbackQuery, state: FSMContext, bot: Bo
     try:
         await bot.send_message(chat_id=MANAGER_TELEGRAM_ID, text=user_info)
         logging.info(f"Данные пользователя отправлены менеджеру {MANAGER_TELEGRAM_ID}")
+        await callback.message.answer('Вы записались на консультацию!')
+        await state.clear()
+
     except Exception as e:
         logging.error(f"Ошибка при отправке данных менеджеру: {e}")
 
-    await callback.message.answer('Вы записались на консультацию!')
+
